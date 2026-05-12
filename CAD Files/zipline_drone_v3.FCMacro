@@ -1,1 +1,473 @@
+# -*- coding: utf-8 -*-
+"""
+FreeCAD Macro: Zipline P1 / Sparrow Delivery Drone (v3, diagram-matched)
+=========================================================================
+Rebuilt to match the labeled cutaway diagram of the actual airframe:
 
+  (1) Slim flying-boat fuselage (smooth elliptical cross-section,
+      not a boxy pod)
+  (2) Bright RED wings, high aspect ratio, mostly straight planform
+  (3) Removable wing centre section locking into the fuselage spine
+      (shown here as the visible wing-fuselage interface)
+  (4) Single slim tail boom extending from the rear of the fuselage,
+      ending in a conventional T-tail (vertical fin + horizontal
+      stabilizer on top)
+  (5) PYLON-MOUNTED pusher: two struts rise from the upper rear of
+      the fuselage to support a horizontal motor and pusher propeller
+      held HIGH ABOVE the fuselage — this is the most distinctive
+      feature of the P1
+  (7) Belly hatch on a hinge for parachute-stabilised package drop
+  (8) Small skid/sensor at the very rear of the tail boom
+
+Reference: photo + Spectrum/IEEE cutaway, total length ~2.18 m,
+wingspan 3.0-3.7 m, ~20 kg with 1.75 kg payload, catapult launch,
+wire-hook recovery (no landing gear).
+
+Usage:
+  1. Open FreeCAD 0.20+.
+  2. Save as 'zipline_drone_v3.FCMacro' in your macro folder, or
+     paste into the Python console.
+  3. Edit PARAMETERS, then run.
+
+Coordinate system: +X aft (nose -> tail), +Y right wingtip, +Z up.
+Units: mm and degrees.
+
+License: MIT.
+"""
+
+import math
+import FreeCAD as App
+import Part
+from FreeCAD import Vector, Rotation, Placement
+
+
+# =============================================================
+# PARAMETERS
+# =============================================================
+
+# --- Flying-boat fuselage (white) ---
+POD_LENGTH         = 1300.0
+POD_WIDTH          = 220.0
+POD_HEIGHT         = 240.0
+POD_NOSE_LENGTH    = 280.0
+POD_TAIL_LENGTH    = 230.0
+POD_SHAPE_N        = 2.4    # near-ellipse, smooth flying-boat hull
+
+# --- Belly hatch ---
+HATCH_X_START      = 500.0
+HATCH_LENGTH       = 220.0
+HATCH_HALFWIDTH    = 55.0
+HATCH_OPEN_DEG     = 55.0
+
+# --- Payload ---
+SHOW_PAYLOAD       = True
+PAYLOAD_LENGTH     = 170.0
+PAYLOAD_WIDTH      = 85.0
+PAYLOAD_HEIGHT     = 78.0
+PAYLOAD_BAY_EXTRA  = 12.0
+
+# --- RED wings ---
+WING_SPAN          = 3500.0
+WING_ROOT_CHORD    = 300.0
+WING_TIP_CHORD     = 230.0
+WING_THICKNESS_PCT = 0.12
+WING_CAMBER_PCT    = 0.025
+WING_CAMBER_POS    = 0.40
+WING_DIHEDRAL_DEG  = 2.5
+WING_SWEEP_DEG     = 0.0
+WING_INCIDENCE_DEG = 2.0
+WING_X_POS         = 360.0
+WING_Z_FRAC        = 0.55   # mid wing, slightly above centre
+
+# --- Pylon-mounted pusher (motor sits HIGH above fuselage) ---
+PYLON_X            = 1100.0   # where pylons attach to fuselage
+PYLON_HEIGHT       = 210.0    # how high the motor mount sits above fuselage top
+PYLON_DIAM         = 18.0     # pylon strut diameter
+PYLON_SPACING_Y    = 60.0     # lateral spacing of pylon bases (converging at top)
+
+MOTOR_DIAMETER     = 52.0
+MOTOR_LENGTH       = 65.0
+PROP_DIAMETER      = 340.0
+PROP_BLADE_W_ROOT  = 32.0
+PROP_BLADE_W_TIP   = 16.0
+PROP_PITCH_DEG     = 18.0
+PROP_HUB_DIAM      = 24.0
+PROP_BLADES        = 2
+PROP_THICKNESS     = 3.0
+
+# --- Single tail boom + T-tail ---
+BOOM_DIAM          = 32.0
+BOOM_X_START       = 1270.0   # 30 mm overlap into fuselage rear
+BOOM_X_END         = 2000.0
+BOOM_Z_FRAC        = 0.55     # at fuselage mid-upper height
+
+VFIN_HEIGHT        = 260.0
+VFIN_ROOT_CHORD    = 170.0
+VFIN_TIP_CHORD     = 110.0
+VFIN_THICK_PCT     = 0.09
+VFIN_SWEEP_DEG     = 28.0
+
+HSTAB_SPAN         = 620.0
+HSTAB_ROOT_CHORD   = 150.0
+HSTAB_TIP_CHORD    = 95.0
+HSTAB_THICK_PCT    = 0.09
+HSTAB_DIHEDRAL_DEG = 4.0      # slight upward tip dihedral
+
+# --- Small rear skid / sensor (8) ---
+SKID_LENGTH        = 35.0
+SKID_DIAM          = 12.0
+
+
+# =============================================================
+# Document setup
+# =============================================================
+DOC_NAME = "ZiplineDrone_v3"
+if DOC_NAME in App.listDocuments():
+    App.closeDocument(DOC_NAME)
+doc = App.newDocument(DOC_NAME)
+
+
+# =============================================================
+# Helpers
+# =============================================================
+def naca4_section_points(chord, thickness, camber=0.0, camber_pos=0.4, n=80):
+    upper, lower = [], []
+    for i in range(n + 1):
+        beta = math.pi * i / n
+        x = (1.0 - math.cos(beta)) / 2.0
+        yt = 5.0 * thickness * (
+            0.2969 * math.sqrt(x)
+            - 0.1260 * x
+            - 0.3516 * x ** 2
+            + 0.2843 * x ** 3
+            - 0.1036 * x ** 4
+        )
+        if camber > 0.0:
+            if x < camber_pos:
+                yc  = (camber / camber_pos ** 2) * (2 * camber_pos * x - x ** 2)
+                dyc = (2 * camber / camber_pos ** 2) * (camber_pos - x)
+            else:
+                yc  = (camber / (1 - camber_pos) ** 2) * (
+                    (1 - 2 * camber_pos) + 2 * camber_pos * x - x ** 2
+                )
+                dyc = (2 * camber / (1 - camber_pos) ** 2) * (camber_pos - x)
+            theta = math.atan(dyc)
+            xu, zu = x - yt * math.sin(theta), yc + yt * math.cos(theta)
+            xl, zl = x + yt * math.sin(theta), yc - yt * math.cos(theta)
+        else:
+            xu, zu = x, yt
+            xl, zl = x, -yt
+        upper.append(Vector(xu * chord, 0, zu * chord))
+        lower.append(Vector(xl * chord, 0, zl * chord))
+    pts = upper + list(reversed(lower[1:-1]))
+    pts.append(pts[0])
+    return pts
+
+
+def airfoil_wire(chord, thickness, camber=0.0, camber_pos=0.4):
+    return Part.makePolygon(
+        naca4_section_points(chord, thickness, camber, camber_pos)
+    )
+
+
+def superellipse_wire_yz(x, width, height, z_center, n=2.0, num_points=80):
+    a, b = width / 2.0, height / 2.0
+    pts = []
+    for i in range(num_points + 1):
+        t = 2.0 * math.pi * i / num_points
+        c = math.cos(t)
+        s = math.sin(t)
+        y = a * (1 if c >= 0 else -1) * abs(c) ** (2.0 / n)
+        z = z_center + b * (1 if s >= 0 else -1) * abs(s) ** (2.0 / n)
+        pts.append(Vector(x, y, z))
+    return Part.makePolygon(pts)
+
+
+def add_object(name, shape, color=None):
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = shape
+    try:
+        if color is not None and obj.ViewObject is not None:
+            obj.ViewObject.ShapeColor = color
+    except Exception:
+        pass
+    return obj
+
+
+def make_strut(start, end, diameter):
+    """Cylinder from start to end with given diameter."""
+    direction = end - start
+    length = direction.Length
+    if length < 1e-6:
+        return None
+    return Part.makeCylinder(
+        diameter / 2.0, length, start, Vector(direction).normalize()
+    )
+
+
+# =============================================================
+# Fuselage  (flying-boat hull) + belly hatch + payload bay
+# =============================================================
+def build_fuselage_and_hatch():
+    z_mid = POD_HEIGHT * 0.5
+    sections = [
+        (0.0,                                14.0,             14.0,              z_mid * 1.05),
+        (POD_NOSE_LENGTH * 0.30,             POD_WIDTH * 0.55, POD_HEIGHT * 0.60, z_mid),
+        (POD_NOSE_LENGTH * 0.70,             POD_WIDTH * 0.88, POD_HEIGHT * 0.90, z_mid),
+        (POD_NOSE_LENGTH,                    POD_WIDTH,        POD_HEIGHT,        z_mid),
+        (POD_LENGTH - POD_TAIL_LENGTH,       POD_WIDTH,        POD_HEIGHT,        z_mid),
+        (POD_LENGTH - POD_TAIL_LENGTH * 0.5, POD_WIDTH * 0.75, POD_HEIGHT * 0.75, z_mid),
+        (POD_LENGTH - POD_TAIL_LENGTH * 0.15,POD_WIDTH * 0.42, POD_HEIGHT * 0.42, z_mid),
+        (POD_LENGTH,                         55.0,             55.0,              z_mid),
+    ]
+    wires = [
+        superellipse_wire_yz(x, w, h, zc, POD_SHAPE_N)
+        for (x, w, h, zc) in sections
+    ]
+    pod_solid = Part.makeLoft(wires, True, False)
+
+    # Hatch (same boolean technique as previous designs)
+    semi_y = POD_WIDTH / 2.0
+    semi_z = POD_HEIGHT / 2.0
+    hatch_hw = min(HATCH_HALFWIDTH, semi_y * 0.92)
+    z_at_edge = semi_z * (
+        max(0.0, 1.0 - (hatch_hw / semi_y) ** POD_SHAPE_N)
+    ) ** (1.0 / POD_SHAPE_N)
+    hatch_top_z = z_mid - z_at_edge
+
+    cut_box = Part.makeBox(
+        HATCH_LENGTH, 2.0 * hatch_hw, hatch_top_z + POD_HEIGHT * 2,
+        Vector(HATCH_X_START, -hatch_hw, -POD_HEIGHT * 2),
+    )
+
+    bay_hw = min(hatch_hw - 5.0, semi_y - 10.0)
+    bay_x = HATCH_X_START + 12.0
+    bay_length = max(20.0, HATCH_LENGTH - 24.0)
+    z_top_at_bay_edge = z_mid + semi_z * (
+        max(0.0, 1.0 - (bay_hw / semi_y) ** POD_SHAPE_N)
+    ) ** (1.0 / POD_SHAPE_N)
+    bay_top_z = min(
+        hatch_top_z + PAYLOAD_HEIGHT + PAYLOAD_BAY_EXTRA,
+        z_top_at_bay_edge - 8.0,
+    )
+    bay_box = Part.makeBox(
+        bay_length, 2.0 * bay_hw, bay_top_z - hatch_top_z,
+        Vector(bay_x, -bay_hw, hatch_top_z),
+    )
+
+    hatch_piece = pod_solid.common(cut_box)
+    pod_after_cut = pod_solid.cut(cut_box)
+    pod_with_bay = pod_after_cut.cut(bay_box)
+
+    add_object("Fuselage", pod_with_bay, (0.96, 0.96, 0.97))
+
+    hatch_obj = add_object("DropHatch", hatch_piece, (0.85, 0.13, 0.18))
+    hinge = Vector(HATCH_X_START, 0.0, hatch_top_z)
+    hatch_obj.Placement = Placement(
+        Vector(0, 0, 0),
+        Rotation(Vector(0, 1, 0), HATCH_OPEN_DEG),
+        hinge,
+    )
+    return hatch_top_z
+
+
+# =============================================================
+# Wing
+# =============================================================
+def build_wing():
+    half_span = WING_SPAN / 2.0
+    rise  = half_span * math.tan(math.radians(WING_DIHEDRAL_DEG))
+    sweep = half_span * math.tan(math.radians(WING_SWEEP_DEG))
+
+    root = airfoil_wire(WING_ROOT_CHORD, WING_THICKNESS_PCT,
+                        WING_CAMBER_PCT, WING_CAMBER_POS)
+    tip  = airfoil_wire(WING_TIP_CHORD,  WING_THICKNESS_PCT,
+                        WING_CAMBER_PCT, WING_CAMBER_POS)
+    tip.Placement = Placement(Vector(sweep, half_span, rise), Rotation())
+
+    right = Part.makeLoft([root, tip], True, False)
+    left  = right.mirror(Vector(0, 0, 0), Vector(0, 1, 0))
+    wing  = right.fuse(left)
+
+    obj = add_object("Wing", wing, (0.85, 0.13, 0.18))
+    obj.Placement = Placement(
+        Vector(WING_X_POS, 0, POD_HEIGHT * WING_Z_FRAC),
+        Rotation(Vector(0, 1, 0), -WING_INCIDENCE_DEG),
+    )
+
+
+# =============================================================
+# Pylon-mounted pusher (motor + prop on twin struts above fuselage)
+# =============================================================
+def build_pusher_pylons_motor_prop():
+    pylon_top = Vector(PYLON_X, 0.0, POD_HEIGHT + PYLON_HEIGHT)
+
+    # Twin pylons converging from fuselage top to a single point at the motor
+    pylons = None
+    for side in (-1, 1):
+        bottom = Vector(PYLON_X, side * PYLON_SPACING_Y / 2.0, POD_HEIGHT * 0.92)
+        strut = make_strut(bottom, pylon_top, PYLON_DIAM)
+        pylons = strut if pylons is None else pylons.fuse(strut)
+    # Streamlined nacelle/fairing at the pylon apex to blend into the motor
+    nacelle = Part.makeSphere(MOTOR_DIAMETER / 2.0 * 0.85, pylon_top)
+    pylons = pylons.fuse(nacelle)
+    add_object("PusherPylons", pylons, (0.30, 0.30, 0.32))
+
+    # Motor sitting on top of the pylons, axis along +X (pusher)
+    motor_z = POD_HEIGHT + PYLON_HEIGHT
+    motor_x = PYLON_X
+    motor = Part.makeCylinder(
+        MOTOR_DIAMETER / 2.0, MOTOR_LENGTH,
+        Vector(motor_x, 0, motor_z),
+        Vector(1, 0, 0),
+    )
+    add_object("Motor", motor, (0.10, 0.10, 0.10))
+
+    hub_x = motor_x + MOTOR_LENGTH
+    hub = Part.makeCylinder(
+        PROP_HUB_DIAM / 2.0, 8.0,
+        Vector(hub_x, 0, motor_z),
+        Vector(1, 0, 0),
+    )
+
+    def build_blade(angle_deg):
+        w_r, w_t = PROP_BLADE_W_ROOT, PROP_BLADE_W_TIP
+        r_in, r_out = PROP_HUB_DIAM / 2.0, PROP_DIAMETER / 2.0
+        t = PROP_THICKNESS
+        bot = [
+            Vector(-w_r / 2.0, r_in,  -t / 2.0),
+            Vector( w_r / 2.0, r_in,  -t / 2.0),
+            Vector( w_t / 2.0, r_out, -t / 2.0),
+            Vector(-w_t / 2.0, r_out, -t / 2.0),
+        ]
+        top = [Vector(p.x, p.y, t / 2.0) for p in bot]
+        bot_wire = Part.makePolygon(bot + [bot[0]])
+        top_wire = Part.makePolygon(top + [top[0]])
+        blade = Part.makeLoft([bot_wire, top_wire], True, False)
+
+        pitch = Placement(Vector(0, 0, 0),
+                          Rotation(Vector(0, 1, 0), -PROP_PITCH_DEG))
+        rot   = Placement(Vector(0, 0, 0),
+                          Rotation(Vector(1, 0, 0), angle_deg))
+        pos   = Placement(Vector(hub_x + 5.0, 0, motor_z), Rotation())
+        blade.Placement = pos.multiply(rot).multiply(pitch).multiply(blade.Placement)
+        return blade
+
+    prop = hub
+    for i in range(PROP_BLADES):
+        prop = prop.fuse(build_blade(360.0 * i / PROP_BLADES))
+    add_object("Propeller", prop, (0.10, 0.10, 0.10))
+
+
+# =============================================================
+# Tail boom (single)
+# =============================================================
+def build_tail_boom():
+    boom_z = POD_HEIGHT * BOOM_Z_FRAC
+    boom_length = BOOM_X_END - BOOM_X_START
+    boom = Part.makeCylinder(
+        BOOM_DIAM / 2.0, boom_length,
+        Vector(BOOM_X_START, 0, boom_z),
+        Vector(1, 0, 0),
+    )
+    add_object("TailBoom", boom, (0.94, 0.94, 0.96))
+
+    # Small rear skid / sensor (8) at the end of the boom
+    skid_start = Vector(BOOM_X_END, 0, boom_z)
+    skid_end   = Vector(BOOM_X_END + SKID_LENGTH * 0.7, 0,
+                        boom_z - SKID_LENGTH * 0.55)
+    skid = make_strut(skid_start, skid_end, SKID_DIAM)
+    tip = Part.makeSphere(SKID_DIAM / 2.0, skid_end)
+    skid = skid.fuse(tip)
+    add_object("RearSkid", skid, (0.30, 0.30, 0.32))
+
+
+# =============================================================
+# T-tail (vertical fin on boom end + horizontal stab on top)
+# =============================================================
+def build_t_tail():
+    boom_z = POD_HEIGHT * BOOM_Z_FRAC
+    vfin_root_z = boom_z + BOOM_DIAM / 2.0    # sits on top of boom
+
+    # Vertical fin (built lying flat then rotated 90° so span goes up)
+    root = airfoil_wire(VFIN_ROOT_CHORD, VFIN_THICK_PCT)
+    tip  = airfoil_wire(VFIN_TIP_CHORD,  VFIN_THICK_PCT)
+    sweep = VFIN_HEIGHT * math.tan(math.radians(VFIN_SWEEP_DEG))
+    tip.Placement = Placement(Vector(sweep, VFIN_HEIGHT, 0), Rotation())
+    fin = Part.makeLoft([root, tip], True, False)
+
+    fin_x = BOOM_X_END - VFIN_ROOT_CHORD * 0.7
+    fin_obj = add_object("VerticalFin", fin, (0.95, 0.95, 0.97))
+    fin_obj.Placement = Placement(
+        Vector(fin_x, 0, vfin_root_z),
+        Rotation(Vector(1, 0, 0), 90.0),
+    )
+
+    # Horizontal stab perched on top of the fin (true T-tail)
+    hstab_z = vfin_root_z + VFIN_HEIGHT
+    hstab_x = fin_x + sweep + (VFIN_TIP_CHORD - HSTAB_ROOT_CHORD) * 0.5
+
+    half_span = HSTAB_SPAN / 2.0
+    rise = half_span * math.tan(math.radians(HSTAB_DIHEDRAL_DEG))
+    root_h = airfoil_wire(HSTAB_ROOT_CHORD, HSTAB_THICK_PCT)
+    tip_h  = airfoil_wire(HSTAB_TIP_CHORD,  HSTAB_THICK_PCT)
+    tip_h.Placement = Placement(
+        Vector((HSTAB_ROOT_CHORD - HSTAB_TIP_CHORD) / 2.0,
+               half_span, rise),
+        Rotation(),
+    )
+    right = Part.makeLoft([root_h, tip_h], True, False)
+    left  = right.mirror(Vector(0, 0, 0), Vector(0, 1, 0))
+    hstab = right.fuse(left)
+
+    h_obj = add_object("HorizontalStabilizer", hstab, (0.95, 0.95, 0.97))
+    h_obj.Placement = Placement(
+        Vector(hstab_x, 0, hstab_z),
+        Rotation(),
+    )
+
+
+# =============================================================
+# Payload visualization
+# =============================================================
+def build_payload(hatch_top_z):
+    payload_x = HATCH_X_START + (HATCH_LENGTH - PAYLOAD_LENGTH) / 2.0
+    box = Part.makeBox(
+        PAYLOAD_LENGTH, PAYLOAD_WIDTH, PAYLOAD_HEIGHT,
+        Vector(payload_x, -PAYLOAD_WIDTH / 2.0, hatch_top_z + 2.0),
+    )
+    add_object("Payload", box, (0.78, 0.58, 0.30))
+
+
+# =============================================================
+# Build everything
+# =============================================================
+print("Building flying-boat fuselage with belly drop hatch...")
+hatch_top_z = build_fuselage_and_hatch()
+print("Building red wings...")
+build_wing()
+print("Building pylon-mounted pusher (twin struts + motor + prop)...")
+build_pusher_pylons_motor_prop()
+print("Building tail boom and rear skid...")
+build_tail_boom()
+print("Building T-tail...")
+build_t_tail()
+if SHOW_PAYLOAD:
+    print("Adding payload package...")
+    build_payload(hatch_top_z)
+
+doc.recompute()
+
+try:
+    import FreeCADGui as Gui
+    Gui.activeDocument().activeView().viewAxonometric()
+    Gui.SendMsgToActiveView("ViewFit")
+except Exception:
+    pass
+
+print("Zipline P1 drone v3 (diagram-matched) generated.")
+print(f"  Wingspan: {WING_SPAN / 1000:.2f} m   Length: {BOOM_X_END / 1000:.2f} m (to fin)")
+print(f"  Pylon-mounted pusher, T-tail on single boom.")
+print(f"  Hatch open at {HATCH_OPEN_DEG:.0f} degrees.")
+print("  No landing gear: catapult launch + wire-hook recovery in real life.")
+print("  Edit PARAMETERS at the top of this macro to customize.")
