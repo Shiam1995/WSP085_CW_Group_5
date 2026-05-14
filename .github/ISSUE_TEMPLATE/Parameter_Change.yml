@@ -1,0 +1,107 @@
+name: Design Parameter Change
+description: Raise a proposed change to a CSS design parameter
+title: "[PARAMETER CHANGE]: "
+labels:
+  - parameter-change
+ 
+body:
+  - type: input
+    id: parameter
+    attributes:
+      label: Parameter being changed
+      placeholder: e.g. Payload mass, wing span, battery capacity
+    validations:
+      required: true
+ 
+  - type: input
+    id: current_value
+    attributes:
+      label: Current value
+      placeholder: e.g. 5 kg
+    validations:
+      required: true
+ 
+  - type: input
+    id: proposed_value
+    attributes:
+      label: Proposed value
+      placeholder: e.g. 8 kg
+    validations:
+      required: true
+ 
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Change priority
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+ 
+  - type: input
+    id: sysml_element
+    attributes:
+      label: Affected SysML block or element
+      placeholder: e.g. Fixed Wing UAV::Payload System
+ 
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale for change
+      description: Why is this parameter change required?
+    validations:
+      required: true
+ 
+  - type: textarea
+    id: image_upload
+    attributes:
+      label: Upload supporting image from impact identifier
+      description: Drag and drop JPG/PNG
+      placeholder: Paste or drag image files here
+ 
+  - type: checkboxes
+    id: affected_models
+    attributes:
+      label: Engineer Recommended affected models
+      options:
+        - label: Parametric Model Range
+        - label: Reliability Model
+        - label: CAD
+        - label: Bill of Materials
+ 
+  - type: textarea
+    id: engineer_notes
+    attributes:
+      label: Engineer notes
+      placeholder: Record expected impacts, assumptions, affected artefacts, verification concerns, or additional technical context.
+ 
+  - type: checkboxes
+    id: chief_engineer_rerun_decision
+    attributes:
+      label: Chief Engineer authorised model re-runs
+      description: Select the models authorised for re-run following technical review.
+      options:
+        - label: Parametric Model Range approved for re-run
+        - label: Reliability Model approved for re-run
+        - label: CAD approved for re-run
+        - label: Bill of Materials approved for update
+        - label: Verification review required
+        - label: Additional impact assessment required
+ 
+  - type: textarea
+    id: chief_engineer_notes
+    attributes:
+      label: Chief Engineer notes
+      description: Record authorised re-runs, exclusions, technical rationale, and review decisions.
+ 
+  - type: dropdown
+    id: chief_engineer_status
+    attributes:
+      label: Chief Engineer decision status
+      options:
+        - Pending review
+        - Approved
+        - Approved with conditions
+        - Rejected
+        - Further evidence required
