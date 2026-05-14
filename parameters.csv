@@ -1,0 +1,65 @@
+parameter,value,unit,description
+# --- Flying-boat fuselage ---,,,
+POD_LENGTH,1.3,m,Total fuselage length
+POD_WIDTH,0.22,m,Fuselage max width
+POD_HEIGHT,0.24,m,Fuselage max height
+POD_NOSE_LENGTH,0.28,m,Length of the tapered nose section
+POD_TAIL_LENGTH,0.23,m,Length of the tapered tail section
+POD_SHAPE_N,2.4,-,Super-ellipse exponent (2 = ellipse; higher = boxier)
+# --- Belly hatch ---,,,
+HATCH_X_START,0.5,m,X position where the hatch cutout begins
+HATCH_LENGTH,0.22,m,Length of the hatch along X
+HATCH_HALFWIDTH,0.055,m,Half-width of the hatch in Y
+HATCH_OPEN_DEG,55.0,deg,How far the hatch is shown open (0 = closed)
+# --- Payload ---,,,
+SHOW_PAYLOAD,True,bool,Show payload box in the model (True/False)
+PAYLOAD_LENGTH,0.17,m,Payload box length
+PAYLOAD_WIDTH,0.085,m,Payload box width
+PAYLOAD_HEIGHT,0.078,m,Payload box height
+PAYLOAD_BAY_EXTRA,0.012,m,Extra clearance above payload inside the bay
+# --- Wings ---,,,
+WING_SPAN,3.5,m,Total wingspan (tip to tip)
+WING_ROOT_CHORD,0.3,m,Wing chord at root
+WING_TIP_CHORD,0.23,m,Wing chord at tip
+WING_THICKNESS_PCT,0.12,-,Airfoil thickness as fraction of chord
+WING_CAMBER_PCT,0.025,-,Airfoil camber as fraction of chord
+WING_CAMBER_POS,0.40,-,Position of max camber along chord (0-1)
+WING_DIHEDRAL_DEG,2.5,deg,Wing dihedral angle
+WING_SWEEP_DEG,0.0,deg,Wing sweep angle (positive = swept back)
+WING_INCIDENCE_DEG,2.0,deg,Wing angle of incidence
+WING_X_POS,0.36,m,X position of wing on fuselage
+WING_Z_FRAC,0.55,-,Wing vertical position as fraction of pod height
+# --- Pylon + motor + propeller ---,,,
+PYLON_X,1.1,m,X position where pylons attach to fuselage
+PYLON_HEIGHT,0.21,m,Pylon height above fuselage top
+PYLON_DIAM,0.018,m,Pylon strut diameter
+PYLON_SPACING_Y,0.06,m,Lateral spacing of pylon bases
+MOTOR_DIAMETER,0.052,m,Motor cylinder diameter
+MOTOR_LENGTH,0.065,m,Motor cylinder length
+PROP_DIAMETER,0.34,m,Propeller tip-to-tip diameter
+PROP_BLADE_W_ROOT,0.032,m,Propeller blade width at root
+PROP_BLADE_W_TIP,0.016,m,Propeller blade width at tip
+PROP_PITCH_DEG,18.0,deg,Propeller blade pitch angle
+PROP_HUB_DIAM,0.024,m,Propeller hub diameter
+PROP_BLADES,2,count,Number of propeller blades
+PROP_THICKNESS,0.003,m,Propeller blade thickness
+# --- Tail boom ---,,,
+BOOM_DIAM,0.032,m,Tail boom diameter
+BOOM_X_START,1.27,m,X position where boom begins (overlap into fuselage)
+BOOM_X_END,2.0,m,X position where boom ends
+BOOM_Z_FRAC,0.55,-,Boom vertical position as fraction of pod height
+# --- Vertical fin ---,,,
+VFIN_HEIGHT,0.26,m,Vertical fin height
+VFIN_ROOT_CHORD,0.17,m,Vertical fin chord at base
+VFIN_TIP_CHORD,0.11,m,Vertical fin chord at top
+VFIN_THICK_PCT,0.09,-,Vertical fin airfoil thickness as fraction of chord
+VFIN_SWEEP_DEG,28.0,deg,Vertical fin sweep angle
+# --- Horizontal stabilizer ---,,,
+HSTAB_SPAN,0.62,m,Horizontal stabilizer span
+HSTAB_ROOT_CHORD,0.15,m,Horizontal stab chord at root
+HSTAB_TIP_CHORD,0.095,m,Horizontal stab chord at tip
+HSTAB_THICK_PCT,0.09,-,Horizontal stab airfoil thickness as fraction of chord
+HSTAB_DIHEDRAL_DEG,4.0,deg,Horizontal stab dihedral angle
+# --- Rear skid / sensor ---,,,
+SKID_LENGTH,0.035,m,Rear skid/sensor length
+SKID_DIAM,0.012,m,Rear skid/sensor diameter
